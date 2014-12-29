@@ -1,4 +1,4 @@
-Copyright (c) 2014 Hoersten
+Copyright (c) 2014 Chad Hoersten
 
 MIT License
 

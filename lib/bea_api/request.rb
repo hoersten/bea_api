@@ -4,8 +4,12 @@ module BeaApi
     require 'restclient'
     require 'json'
 
-    attr_accessor :response, :error_code, :error_msg
-    InvalidKey = 3 # APIErrorCode 3: The BEA API UserID provided in the request does not exist.
+    attr_accessor :response, :error_code, :error_msg, :notes
+    Success          = 0   # Sucess, no errors
+    InvalidKey       = 3   # APIErrorCode 3: The BEA API UserID provided in the request does not exist.
+    MissingParams    = 40  # APIErrorCode 40: The dataset requested requires parameters that were missing from the request
+    RetrivalError    = 201 # APIErrorCode 201: Error retrieving NIPA/Fixed Assets data
+    GDPRetrivalError = 204 # APIErrorCode 204: Error retrieving GDP by Industry data
 
     BEA_URL = 'http://www.bea.gov/api/data'
 
@@ -15,6 +19,8 @@ module BeaApi
     end
 
     def initialize(uri)
+      @error_code = Request::Success
+      @error_msg  = ""
       @response = RestClient.get(uri.to_s)
       _parse_response
     end
@@ -24,9 +30,9 @@ module BeaApi
     def _parse_response
       case @response.code
       when 200
-        _response_success(@response)
+        _response_html_success(@response)
       else
-        _response_error(@response)
+        _response_html_error(@response)
       end
     end
 
@@ -34,23 +40,58 @@ module BeaApi
       options.map { |k,v| "#{k}=#{v}" }.join("&")
     end
 
-    def _response_success(response)
+    def _response_html_success(response)
       r = JSON.parse(response)
+      if (!r["BEAAPI"]["Error"].nil? || r["BEAAPI"]["Results"].first.first.to_s.downcase == 'error')
+        @response = _response_error(response, r)
+      else
+        @response = _response_success(r)
+      end
+    end
+
+    def _response_success(response)
       h = []
-      if (r.length > 0)
-        h = r["BEAAPI"]["Results"].first.last
+      if (response.length > 0)
+        if (!response["BEAAPI"]["Results"]["Data"].nil?)
+          h = response["BEAAPI"]["Results"]["Data"]
+        elsif (!response["BEAAPI"]["Data"].nil?)
+          h = response["BEAAPI"]["Data"]
+        else
+          h = response["BEAAPI"]["Results"].first[1]
+        end
+        if (!h.kind_of?(Array))
+          h = [h]
+        end
+        if (!response["BEAAPI"]["Results"]["Notes"].nil?)
+          @notes = response["BEAAPI"]["Results"]["Notes"]
+        elsif (!response["BEAAPI"]["Notes"].nil?)
+          @notes = response["BEAAPI"]["Notes"]
+        end
       end
       h
     end
 
-    def _response_error(response)
-      r = JSON.parse(response.body)
-      puts r["BEAAPI"]["Results"]
+    def _response_error(response, r)
+      if (!r["BEAAPI"]["Error"].nil?)
+        @error_code = r["BEAAPI"]["Error"]["APIErrorCode"].to_i
+        @error_msg  = r["BEAAPI"]["Error"]["APIErrorDescription"]
+      else
+        @error_code = r["BEAAPI"]["Results"].first.last["APIErrorCode"].to_i
+        @error_msg  = r["BEAAPI"]["Results"].first.last["APIErrorDescription"]
+      end
       {
         code: response.code,
         location: response.headers[:location],
-        error_code: r["BEAAPI"]["Results"].first,
-        error_msg: r["BEAAPI"]["Results"].last
+        error_code: @error_code,
+        error_msg:  @error_msg
+      }
+    end
+
+    def _response_html_error(response)
+      {
+        code: response.code,
+        location: response.headers[:location],
+        body: response.body
       }
     end
 

@@ -4,135 +4,273 @@ describe BeaApi::Client do
 
   describe 'client initialization' do
 
+    it 'should not initialize without an api_key' do
+      expect { BeaApi::Client.new(nil) }.to raise_error(ArgumentError)
+    end
+
+    it 'should not initialize with an invalid api_key' do
       VCR.use_cassette('initialize_client_failure') do
-        it 'should not initialize without an api_key' do
-          expect(lambda { BeaApi::Client.new }).to raise_error
-        end
+        expect { BeaApi::Client.new('XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX') }.to raise_error(/is not a valid API key/)
       end
+    end
 
-      it 'should initialize with an api_key' do
-        VCR.use_cassette('initialize_client') do
+    it 'should initialize with an api_key' do
+      VCR.use_cassette('initialize_client') do
+        @client = BeaApi::Client.new(api_key)
+        expect(@client.api_key).to eq(api_key)
+      end
+    end
+  end
+
+  describe 'get datasets' do
+
+      it 'should get all the datasets' do
+        VCR.use_cassette('get_datasets') do
           @client = BeaApi::Client.new(api_key)
-          expect(@client.api_key).to eq(api_key)
+          @datasets = @client.get_datasets()
+          expect(@datasets.error_code).to eq(BeaApi::Request::Success)
+          expect(@datasets.response.count).to eq(@client.datasets.count)
+          @datasets.response.each do |r|
+            expect(@client.datasets).to include(r["DatasetName"].to_sym)
+          end
         end
       end
   end
-=begin
-  describe 'client and dataset initialization' do
 
-    use_vcr_cassette 'initialize_client_and_dataset'
+  describe 'get parameters' do
 
-    it 'should initialize with an api_key and dataset' do
-      dataset = 'SF1'
-      @client = BeaApi::Client.new(api_key, dataset: dataset)
-      @client.api_key.should == api_key
-      @client.dataset.should == dataset.downcase
-    end
-  end
-
-  describe 'datasets' do
-
-    use_vcr_cassette 'find_method'
-    describe 'sf1' do
-      let(:source) { 'sf1' }
-      let(:options) do
-        { key: api_key,
-          vintage: 2010,
-          fields: 'P0010001',
-          level: 'STATE:06',
-          within: [] }
+      it 'should not get parameters for an invalid dataset' do
+        VCR.use_cassette('get invalid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          expect {@client.get_parameters("InvalidDataset") }.to raise_error(ArgumentError)
+        end
       end
 
-      it 'should request sf1' do
-        @client = BeaApi::Client.new(api_key, dataset: source)
-        BeaApi::Request.should_receive(:find).with(@client.dataset, options)
-        @client.where(options)
+      it 'should get parameters for each dataset' do
+        VCR.use_cassette('get_parmeters') do
+          @client = BeaApi::Client.new(api_key)
+          @client.datasets.each do |d|
+            p = @client.get_parameters(d)
+            expect(p.error_code).to eq(BeaApi::Request::Success)
+          end
+        end
+      end
+  end
+
+  describe 'get parameter values' do
+
+      it 'should not get parameter values for an invalid dataset' do
+        VCR.use_cassette('get invalid parameter values') do
+          @client = BeaApi::Client.new(api_key)
+          expect {@client.get_parameter_values("InvalidDataset", '') }.to raise_error(ArgumentError)
+        end
+      end
+
+      it 'should not get parameters values for an invalid parameter' do
+        VCR.use_cassette('get invalid parameter values') do
+          @client = BeaApi::Client.new(api_key)
+          expect {@client.get_parameters(@client.datasets.first, '') }.to raise_error(ArgumentError)
+        end
+      end
+
+      it 'should get parameters values for each dataset' do
+        VCR.use_cassette('get_parmeter_values') do
+          @client = BeaApi::Client.new(api_key)
+          @client.datasets.each do |d|
+            p = @client.get_parameters(d)
+            expect(p.error_code).to eq(BeaApi::Request::Success)
+            r = p.response.first
+            n = @client.get_parameter_values(d, r['ParameterName'])
+            expect(n.error_code).to eq(BeaApi::Request::Success)
+          end
+        end
+      end
+  end
+
+  describe 'get data' do
+    it 'should not get data for an invalid dataset' do
+      VCR.use_cassette('get invalid data dataset') do
+        @client = BeaApi::Client.new(api_key)
+        expect {@client.get_data("InvalidDataset", '') }.to raise_error(ArgumentError)
+      end
+    end
+    it 'should not get data values for an invalid parameter' do
+      VCR.use_cassette('get invalid data options') do
+        @client = BeaApi::Client.new(api_key)
+        dataset = @client.datasets.first
+        expect {@client.get_data(dataset, {}) }.to raise_error(ArgumentError)
+        expect {@client.get_data(dataset, nil) }.to raise_error(ArgumentError)
+        expect {@client.get_data(dataset, "") }.to raise_error(ArgumentError)
       end
     end
 
-    describe 'acs5' do
-      let(:source) { 'acs5' }
-      let(:options) do
-        { key: api_key,
-          vintage: 2010,
-          fields: 'B00001_001E',
-          level: 'STATE:06',
-          within: [] }
+    describe 'RegionalData' do
+      dataset = :RegionalData
+      it 'should not get data values for invalid parameters' do
+        VCR.use_cassette('get data for RegionalData with invalid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "KeyCode" => "PCPI_CI", "GeoFIPS" => "STATE:00000,01000,02000,04000", "Year" => 3009 } )
+          expect(r.error_code).not_to eq(BeaApi::Request::Success)
+        end
       end
-
-      it 'should request acs5' do
-        @client = BeaApi::Client.new(api_key, dataset: source)
-        BeaApi::Request.should_receive(:find).with(@client.dataset, options)
-        @client.where(options)
+      it 'should get data values for valid parameters' do
+        VCR.use_cassette('get data for RegionalData with valid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "KeyCode" => "PCPI_CI", "GeoFIPS" => "STATE:00000,01000,02000,04000", "Year" => 2009 } )
+          expect(r.error_code).to eq(BeaApi::Request::Success)
+          expect(r.response.count).to eq(4)
+        end
       end
     end
+
+    describe 'NIPA' do
+      dataset = :NIPA
+      it 'should not get data values for invalid parameters' do
+        VCR.use_cassette('get data for NIPA with invalid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "TableID" => 0, "Frequency" => "A", "Year" => 2009 } )
+          expect(r.error_code).to eq(BeaApi::Request::RetrivalError)
+        end
+      end
+      it 'should get data values for valid parameters' do
+        VCR.use_cassette('get data for NIPA with valid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "TableID" => 1, "Frequency" => "A", "Year" => 2009 } )
+          expect(r.error_code).to eq(BeaApi::Request::Success)
+          expect(r.response.count).to eq(25)
+        end
+      end
+    end
+
+    describe 'NI Underlying Detail' do
+      dataset = :NIUnderlyingDetail
+      it 'should not get data values for invalid parameters' do
+        VCR.use_cassette('get data for NI Underlying Detail with invalid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "TableID" => 1, "Frequency" => "A", "Year" => 2009 } )
+          expect(r.error_code).to eq(BeaApi::Request::RetrivalError)
+        end
+      end
+      it 'should get data values for valid parameters' do
+        VCR.use_cassette('get data for NI Underlying Detail with valid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "TableID" => 79, "Frequency" => "A", "Year" => 2004 } )
+          expect(r.error_code).to eq(BeaApi::Request::Success)
+          expect(r.response.count).to eq(30)
+        end
+      end
+    end
+
+    describe 'MNE' do
+      dataset = :MNE
+      it 'should not get data values for invalid parameters' do
+        VCR.use_cassette('get data for MNE with invalid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "DirectionOfInvestment" => 'inval', "Classification" => "", "Year" => 2009, "State" => "01" } )
+          #expect(r.error_code).not_to eq(BeaApi::Request::Success)
+        end
+      end
+      it 'should get data values for valid parameters' do
+        VCR.use_cassette('get data for MNE with valid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "DirectionOfInvestment" => 'inward', "Classification" => "Country", "Year" => 2009, "State" => "01" } )
+          expect(r.error_code).to eq(BeaApi::Request::Success)
+          expect(r.response.count).to eq(1544)
+        end
+      end
+    end
+
+    describe 'Fixed Assets' do
+      dataset = :FixedAssets
+      it 'should not get data values for invalid parameters' do
+        VCR.use_cassette('get data for FixedAssets with invalid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "TableID" => 0, "Year" => 2009 } )
+          expect(r.error_code).not_to eq(BeaApi::Request::Success)
+        end
+      end
+      it 'should get data values for valid parameters' do
+        VCR.use_cassette('get data for FixedAssets with valid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "TableID" => 1, "Year" => 2009 } )
+          expect(r.error_code).to eq(BeaApi::Request::Success)
+          expect(r.response.count).to eq(24)
+        end
+      end
+    end
+
+    describe 'ITA' do
+      dataset = :ITA
+      it 'should not get data values for invalid parameters' do
+        VCR.use_cassette('get data for ITA with invalid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "Frequency" => "A", "Year" => 2009 } )
+          expect(r.error_code).not_to eq(BeaApi::Request::Success)
+        end
+      end
+      it 'should get data values for valid parameters' do
+        VCR.use_cassette('get data for ITA with valid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "Indicator" => "CurrAndDepLiabsFoa", "Frequency" => "A", "Year" => 2009 } )
+          expect(r.error_code).to eq(BeaApi::Request::Success)
+          expect(r.response.count).to eq(1)
+        end
+      end
+      it 'should get data values for valid parameters' do
+        VCR.use_cassette('get data for ITA with 2 valid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "Indicator" => "CurrAndDepLiabsFoa", "Frequency" => "A", "Year" => "2009,2010" } )
+          expect(r.error_code).to eq(BeaApi::Request::Success)
+          expect(r.response.count).to eq(2)
+        end
+      end
+    end
+ 
+    describe 'IIP' do
+      dataset = :IIP
+      it 'should not get data values for invalid parameters' do
+        VCR.use_cassette('get data for IIP with invalid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "Frequency" => "A" } )
+          expect(r.error_code).not_to eq(BeaApi::Request::Success)
+        end
+      end
+      it 'should get data values for valid parameters' do
+        VCR.use_cassette('get data for IIP with valid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "Frequency" => "A", "Year" => 2009 } )
+          expect(r.error_code).to eq(BeaApi::Request::Success)
+          expect(r.response.count).to eq(450)
+        end
+      end
+    end
+
+    describe 'GDPbyIndustry' do
+      dataset = :GDPbyIndustry
+      it 'should not get data values for invalid parameters' do
+        VCR.use_cassette('get data for GDP by Industy with invalid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "Industry" => "12" } )
+          expect(r.error_code).not_to eq(BeaApi::Request::Success)
+        end
+      end
+      it 'should get data values for valid parameters' do
+        VCR.use_cassette('get data for GDP by Frequency with valid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "Industry" => "GDP", "TableID" => 1, "Frequency" => "A", "Year" => 2009 } )
+          expect(r.error_code).to eq(BeaApi::Request::Success)
+          expect(r.response.count).to eq(1)
+        end
+      end
+      it 'should get data values for valid parameters' do
+        VCR.use_cassette('get data for GDP by Frequency with valid parameters') do
+          @client = BeaApi::Client.new(api_key)
+          r = @client.get_data(dataset, { "Industry" => "GDP", "TableID" => 1, "Frequency" => "A", "Year" => "2009,2010" } )
+          expect(r.error_code).to eq(BeaApi::Request::Success)
+          expect(r.response.count).to eq(2)
+        end
+      end
+    end
+ 
   end
-
-  describe '#find' do
-
-    use_vcr_cassette 'find_method'
-
-    let(:source) { 'sf1' }
-    let(:options) do
-      { key: api_key,
-        vintage: 2010,
-        fields: 'P0010001',
-        level: 'STATE:06',
-        within: [] }
-    end
-
-    it 'should be deprecated' do
-      @client = BeaApi::Client.new(api_key, dataset: source)
-      @client.should_receive(:warn)
-      .with('[DEPRECATION] `find` is deprecated. Please use `where` instead.')
-      @client.find(options[:fields], options[:level])
-    end
-  end
-
-  describe '#where' do
-    use_vcr_cassette 'where_method'
-
-    let(:source) { 'sf1' }
-
-    let(:options) do
-      {
-        key: api_key,
-        vintage: 2010,
-        fields: 'P0010001',
-        level: 'STATE:06',
-        within: []
-      }
-    end
-
-    let(:full_params) do
-      options.merge!(level: 'COUNTY:001', within: 'STATE:06')
-    end
-
-    it 'should raise if missing fields params' do
-      @client = BeaApi::Client.new(api_key, dataset: source)
-      expect { @client.where(fields: options[:fields]) }
-      .to raise_error(ArgumentError)
-    end
-
-    it 'should raise if missing level params' do
-      @client = BeaApi::Client.new(api_key, dataset: source)
-      expect { @client.where(level: options[:level]) }
-      .to raise_error(ArgumentError)
-    end
-
-    it 'should request sf1 with valid fields and level params' do
-      @client = BeaApi::Client.new(api_key, dataset: source)
-      BeaApi::Request.should_receive(:find)
-      .with(@client.dataset, options)
-      expect { @client.where(options) }.not_to raise_error
-    end
-
-    it 'should request sf1 with valid fields, level and within params' do
-      @client = BeaApi::Client.new(api_key, dataset: source)
-      BeaApi::Request.should_receive(:find)
-      .with(@client.dataset, full_params)
-      expect { @client.where(full_params) }.not_to raise_error
-    end
-  end
-=end
 end

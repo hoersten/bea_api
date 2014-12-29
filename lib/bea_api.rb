@@ -1,5 +1,3 @@
 require "bea_api/version"
-
-module BeaApi
-  # Your code goes here...
-end
+require "bea_api/client"
+require "bea_api/request"

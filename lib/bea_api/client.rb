@@ -6,7 +6,7 @@ module BeaApi
     attr_reader :datasets 
 
     def datasets
-      [ :regional_data, :nipa, :ni_underlying_detail, :mne, :fixed_assets, :ita, :iip, :gdp_by_industry ]
+      [ :RegionalData, :NIPA, :NIUnderlyingDetail, :MNE, :FixedAssets, :ITA, :IIP, :GDPbyIndustry ]
     end
 
     def initialize(api_key)
@@ -20,11 +20,18 @@ module BeaApi
 
     def get_parameters(dataset)
       fail ArgumentError, 'Invalid dataset.' unless datasets.include?(dataset)
-      _method(dataset, 'GetParameterValues', {})
+      _method(dataset, 'GetParameterList', {})
+    end
+
+    def get_parameter_values(dataset, parameter)
+      fail ArgumentError, 'Invalid dataset.' unless datasets.include?(dataset)
+      fail ArgumentError, 'Invalid parameter name.' unless parameter
+      _method(dataset, 'GetParameterValues', {parametername: parameter})
     end
 
     def get_data(dataset, fields)
       fail ArgumentError, 'Invalid dataset.' unless datasets.include?(dataset)
+      fail ArgumentError, 'Invalid fields.' unless fields.class == Hash && !fields.empty?
       _method(dataset, 'GetData', fields)
     end
 
@@ -41,7 +48,7 @@ module BeaApi
 
     def _method(dataset, method, options)
       fail ArgumentError, 'You must include a dataset.' unless dataset || method.downcase == 'getdatasetlist'
-      options.merge!(userid: @api_key, result_format: 'json', datasetname: dataset, method: method.downcase)
+      options.merge!(userid: @api_key, datasetname: dataset, method: method.downcase)
       Request.find(options)
     end
 
