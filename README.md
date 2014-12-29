@@ -1,5 +1,5 @@
 #BEA API
-[![Circle CI](https://circleci.com/gh/hoersten/bea_api/tree/master.svg?style=svg)](https://circleci.com/gh/hoersten/bea_api/tree/master) [![Code Climate](https://codeclimate.com/github/hoersten/bea_api/badges/gpa.svg)](https://codeclimate.com/github/hoersten/bea_api)
+[![Circle CI](https://circleci.com/gh/hoersten/bea_api/tree/master.svg?style=svg)](https://circleci.com/gh/hoersten/bea_api/tree/master) [![Code Climate](https://codeclimate.com/github/hoersten/bea_api/badges/gpa.svg)](https://codeclimate.com/github/hoersten/bea_api) [![Test Coverage](https://codeclimate.com/github/hoersten/bea_api/badges/coverage.svg)](https://codeclimate.com/github/hoersten/bea_api)
 
 Ruby wrapper for the US Bureau of Economic Analysis (BEA) API.  BEA is an agency of the United States Department of Commerce that produces economic accounts statistics.  The API provides access to regional, national, industrial and international economic statistics.  http://www.bea.gov/about/mission.htm
 
