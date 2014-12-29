@@ -52,26 +52,44 @@ module BeaApi
     def _response_success(response)
       h = []
       if (response.length > 0)
-        if (!response["BEAAPI"]["Results"]["Data"].nil?)
-          h = response["BEAAPI"]["Results"]["Data"]
-        elsif (!response["BEAAPI"]["Data"].nil?)
-          h = response["BEAAPI"]["Data"]
-        else
-          h = response["BEAAPI"]["Results"].first[1]
-        end
-        if (!h.kind_of?(Array))
-          h = [h]
-        end
-        if (!response["BEAAPI"]["Results"]["Notes"].nil?)
-          @notes = response["BEAAPI"]["Results"]["Notes"]
-        elsif (!response["BEAAPI"]["Notes"].nil?)
-          @notes = response["BEAAPI"]["Notes"]
-        end
+        h = _parse_data(response)
+        h = [h] unless (h.kind_of?(Array))
+        @notes = _parse_notes(response)
       end
       h
     end
 
+    def _parse_data(response)
+      if (!response["BEAAPI"]["Results"]["Data"].nil?)
+        h = response["BEAAPI"]["Results"]["Data"]
+      elsif (!response["BEAAPI"]["Data"].nil?)
+        h = response["BEAAPI"]["Data"]
+      else
+        h = response["BEAAPI"]["Results"].first[1]
+      end
+      h
+    end
+
+    def _parse_notes(response)
+      if (!response["BEAAPI"]["Results"]["Notes"].nil?)
+        notes = response["BEAAPI"]["Results"]["Notes"]
+      elsif (!response["BEAAPI"]["Notes"].nil?)
+        notes = response["BEAAPI"]["Notes"]
+      end
+      notes
+    end
+
     def _response_error(response, r)
+      _parse_error(r)
+      {
+        code: response.code,
+        location: response.headers[:location],
+        error_code: @error_code,
+        error_msg:  @error_msg
+      }
+    end
+
+    def _parse_error(r)
       if (!r["BEAAPI"]["Error"].nil?)
         @error_code = r["BEAAPI"]["Error"]["APIErrorCode"].to_i
         @error_msg  = r["BEAAPI"]["Error"]["APIErrorDescription"]
@@ -79,12 +97,6 @@ module BeaApi
         @error_code = r["BEAAPI"]["Results"].first.last["APIErrorCode"].to_i
         @error_msg  = r["BEAAPI"]["Results"].first.last["APIErrorDescription"]
       end
-      {
-        code: response.code,
-        location: response.headers[:location],
-        error_code: @error_code,
-        error_msg:  @error_msg
-      }
     end
 
     def _response_html_error(response)
