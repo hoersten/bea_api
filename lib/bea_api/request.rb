@@ -54,14 +54,9 @@ module BeaApi
     end
 
     def _parse_data(response)
-      if (!response["BEAAPI"]["Results"]["Data"].nil?)
-        h = response["BEAAPI"]["Results"]["Data"]
-      elsif (!response["BEAAPI"]["Data"].nil?)
-        h = response["BEAAPI"]["Data"]
-      else
-        h = response["BEAAPI"]["Results"].first[1]
-      end
-      h
+      h   = response["BEAAPI"]["Results"]["Data"]
+      h ||= response["BEAAPI"]["Data"]
+      h ||= response["BEAAPI"]["Results"].first[1]
     end
 
     def _parse_notes(response)

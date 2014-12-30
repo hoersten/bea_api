@@ -16,8 +16,20 @@ describe BeaApi::Client do
 
     it 'should initialize with an api_key' do
       VCR.use_cassette('initialize_client') do
-        @client = BeaApi::Client.new(api_key)
+        expect { @client = BeaApi::Client.new(api_key) }.not_to raise_error
         expect(@client.api_key).to eq(api_key)
+      end
+    end
+
+    it 'should throw an HTTP error' do
+      VCR.use_cassette('initialize_http_error') do
+        url = BeaApi::Request::BEA_URL
+        begin
+          expect { BeaApi::Request::BEA_URL = 'http://example.com/404' }.to output(/already initialized constant/).to_stderr
+          expect { @client = BeaApi::Client.new(api_key) }.to raise_error
+        ensure
+          expect { BeaApi::Request::BEA_URL = url }.to output(/already initialized constant/).to_stderr
+        end
       end
     end
   end
