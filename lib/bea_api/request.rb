@@ -4,12 +4,8 @@ module BeaApi
     require 'restclient'
     require 'json'
 
-    attr_accessor :response, :error_code, :error_msg, :notes
-    Success          = 0   # Sucess, no errors
+    attr_accessor :response, :notes
     InvalidKey       = 3   # APIErrorCode 3: The BEA API UserID provided in the request does not exist.
-    MissingParams    = 40  # APIErrorCode 40: The dataset requested requires parameters that were missing from the request
-    RetrivalError    = 201 # APIErrorCode 201: Error retrieving NIPA/Fixed Assets data
-    GDPRetrivalError = 204 # APIErrorCode 204: Error retrieving GDP by Industry data
 
     BEA_URL = 'http://www.bea.gov/api/data'
 
@@ -19,8 +15,6 @@ module BeaApi
     end
 
     def initialize(uri)
-      @error_code = Request::Success
-      @error_msg  = ""
       @response = RestClient.get(uri.to_s)
       _parse_response
     end
@@ -43,7 +37,7 @@ module BeaApi
     def _response_html_success(response)
       r = JSON.parse(response)
       if (!r["BEAAPI"]["Error"].nil? || r["BEAAPI"]["Results"].first.first.to_s.downcase == 'error')
-        @response = _response_error(response, r)
+        @response = _response_error(r)
       else
         @response = _response_success(r)
       end
@@ -79,32 +73,20 @@ module BeaApi
       notes
     end
 
-    def _response_error(response, r)
-      _parse_error(r)
-      {
-        code: response.code,
-        location: response.headers[:location],
-        error_code: @error_code,
-        error_msg:  @error_msg
-      }
-    end
-
-    def _parse_error(r)
+    def _response_error(r)
       if (!r["BEAAPI"]["Error"].nil?)
-        @error_code = r["BEAAPI"]["Error"]["APIErrorCode"].to_i
-        @error_msg  = r["BEAAPI"]["Error"]["APIErrorDescription"]
+        err = r["BEAAPI"]["Error"]
       else
-        @error_code = r["BEAAPI"]["Results"].first.last["APIErrorCode"].to_i
-        @error_msg  = r["BEAAPI"]["Results"].first.last["APIErrorDescription"]
+        err = r["BEAAPI"]["Results"].first.last
       end
+      if (err["APIErrorCode"].to_i == InvalidKey)
+        fail InvalidKeyError, "'#{api_key}' is not a valid API key. Check your key for errors, or request a new one at http://www.bea.gov/api/" 
+      end
+      fail ParameterError, err["APIErrorDescription"]
     end
 
     def _response_html_error(response)
-      {
-        code: response.code,
-        location: response.headers[:location],
-        body: response.body
-      }
+      fail StandardError, response.code + "\n" + response.body
     end
 
   end

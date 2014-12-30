@@ -39,11 +39,6 @@ module BeaApi
     def _validate_api_key(api_key)
       @api_key = api_key
       response = get_datasets()
-      if response.error_code == Request::InvalidKey
-        @api_key = nil
-        fail "'#{api_key}' is not a valid API key. Check your key for errors,
-        or request a new one at http://www.bea.gov/api/"
-      end
     end
 
     def _method(dataset, method, options)
